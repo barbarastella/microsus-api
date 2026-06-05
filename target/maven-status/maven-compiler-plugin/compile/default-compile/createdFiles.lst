@@ -1,0 +1,10 @@
+com\ifsul\microsus\Server.class
+com\ifsul\microsus\http\ControladorRotas.class
+com\ifsul\microsus\model\Paciente.class
+com\ifsul\microsus\http\HttpUtils.class
+com\ifsul\microsus\service\GerenciadorAutenticacao.class
+com\ifsul\microsus\model\Prioridade.class
+com\ifsul\microsus\http\HttpParser.class
+com\ifsul\microsus\model\Estado.class
+com\ifsul\microsus\service\GerenciadorPacientes.class
+com\ifsul\microsus\http\ClientHandler.class
