@@ -1,5 +1,6 @@
 package com.ifsul.microsus.http;
 
+import com.ifsul.microsus.service.GerenciadorAutenticacao;
 import com.ifsul.microsus.service.GerenciadorPacientes;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -12,21 +13,22 @@ public class ClientHandler implements Runnable {
 
     private final Socket socket;
     private final GerenciadorPacientes gerenciador;
+    private final GerenciadorAutenticacao autenticacao;
 
-    public ClientHandler(Socket socket, GerenciadorPacientes gerenciador) {
+    public ClientHandler(Socket socket, GerenciadorPacientes gerenciador, GerenciadorAutenticacao autenticacao) {
         this.socket = socket;
         this.gerenciador = gerenciador;
+        this.autenticacao = autenticacao;
     }
 
-    // 1. Parsear requisições HTTP (request line, headers, body) diretamente do
-    // socket TCP
+    // 1. Parsear requisições HTTP (request line, headers, body) diretamente do socket TCP
     @Override
     public void run() {
         try (
-                Socket conexaoAberta = this.socket;
-                BufferedReader input = new BufferedReader(
-                        new InputStreamReader(conexaoAberta.getInputStream(), StandardCharsets.UTF_8));
-                PrintWriter output = new PrintWriter(conexaoAberta.getOutputStream(), true, StandardCharsets.UTF_8)) {
+            Socket conexaoAberta = this.socket;
+                BufferedReader input = new BufferedReader(new InputStreamReader(conexaoAberta.getInputStream(), StandardCharsets.UTF_8));
+                PrintWriter output = new PrintWriter(conexaoAberta.getOutputStream(), true, StandardCharsets.UTF_8)
+            ) {
 
             HttpParser parser = new HttpParser();
             String linha;
@@ -41,9 +43,9 @@ public class ClientHandler implements Runnable {
                 }
 
                 System.out.println("> " + linha);
-
+                
                 if (primeiraLinha) { // request line
-                    String[] partes = linha.split(" ");
+                    String [] partes = linha.split(" ");
 
                     if (partes.length >= 3) {
                         parser.setMethod(partes[0]);
@@ -52,9 +54,9 @@ public class ClientHandler implements Runnable {
                     }
 
                     primeiraLinha = false;
-
+                    
                 } else if (!linha.isEmpty()) { // headers
-                    String[] headerParts = linha.split(":", 2);
+                    String [] headerParts = linha.split(":", 2);
 
                     if (headerParts.length == 2) {
                         parser.setHeader(headerParts[0].trim(), headerParts[1].trim());
@@ -72,12 +74,12 @@ public class ClientHandler implements Runnable {
                 bodyBuffer.flip();
                 parser.setBody(bodyBuffer.toString());
             }
-
-            ControladorRotas controlador = new ControladorRotas(gerenciador);
+            
+            ControladorRotas controlador = new ControladorRotas(gerenciador, autenticacao);
             controlador.processarRequisicao(parser, output);
 
         } catch (Exception e) {
-            System.err.println("Erro no processamento da requisição da thread: " + e.getMessage());
+           System.err.println("Erro no processamento da requisição da thread: " + e.getMessage());
         }
     }
 }
