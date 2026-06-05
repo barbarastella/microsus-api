@@ -1,0 +1,32 @@
+*.class
+
+bin/
+out/
+build/
+
+# VS Code
+.vscode/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Eclipse
+.metadata/
+*.classpath
+*.project
+.settings/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+*.log
+*.tmp
+*.bak
