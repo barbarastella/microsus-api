@@ -36,7 +36,7 @@ public class GerenciadorPacientes {
     public Paciente cadastrarPaciente(Paciente paciente) {
         int novoId = contadorId.getAndIncrement();
         paciente.setId(novoId);
-
+        
         bancoPacientes.put(novoId, paciente);
         salvarDadosNoArquivo();
 
@@ -44,25 +44,23 @@ public class GerenciadorPacientes {
     }
 
     public Paciente buscarPaciente(int id) {
-        for (Paciente p : bancoPacientes.values()) {
-
+      for (Paciente p : bancoPacientes.values()) {
+            
             if (p.getId() == id) {
                 return p;
             }
         }
-
-        return null;
+      
+      return null;
     }
 
     // 4. Gerenciar estruturas de dados em memória com fila de prioridade
     public List<Paciente> obterFilaOrdenada() {
         return bancoPacientes.values()
                 .stream()
-                .filter(paciente -> paciente.getEstado() == Estado.EM_FILA) // impede que pacientes com estado !=
-                                                                            // EM_FILA possam ser chamados
+                .filter(paciente -> paciente.getEstado() == Estado.EM_FILA) // impede que pacientes com estado != EM_FILA possam ser chamados
                 .sorted((pcte1, pcte2) -> {
-                    int compPrioridade = pcte1.getPrioridade().compareTo(pcte2.getPrioridade()); // considera a ordem de
-                                                                                                 // declaração no enum
+                    int compPrioridade = pcte1.getPrioridade().compareTo(pcte2.getPrioridade()); // considera a ordem de declaração no enum
 
                     if (compPrioridade != 0) {
                         return compPrioridade;
@@ -73,22 +71,55 @@ public class GerenciadorPacientes {
                 .collect(Collectors.toList());
     }
 
+    // 5. Implementar e respeitar uma máquina de estados por paciente.
+    public synchronized Paciente chamarProximo() {
+        List<Paciente> fila = obterFilaOrdenada();
+        
+        if (fila.isEmpty()) {
+            return null;
+        }
+
+        Paciente proximo = fila.get(0);
+        proximo.setEstado(Estado.EM_ATENDIMENTO); // POST /chamar transiciona para EM_ATENDIMENTO
+
+        salvarDadosNoArquivo();
+        return proximo;
+    }
+
+    public synchronized Paciente finalizarAtendimento(int id, String prognostico) throws IllegalStateException, IllegalArgumentException {
+        Paciente paciente = buscarPaciente(id);
+
+        if (paciente == null) {
+            throw new IllegalArgumentException("Paciente não encontrado."); // 404 Not Found
+        }
+
+        if (paciente.getEstado() == Estado.EM_FILA) {
+            throw new IllegalStateException("Paciente está EM_FILA, não é possível finalizar sem antes chamar para atendimento."); // 409 Conflict
+        }
+
+        if (paciente.getEstado() == Estado.ATENDIDO) {
+            throw new IllegalStateException("Paciente já está ATENDIDO, não é possível mudar de estado."); // 409 Conflict
+        }
+
+        paciente.setEstado(Estado.ATENDIDO); // POST /pacientes/:id/finalizar transiciona para ATENDIDO
+        paciente.setPrognostico(prognostico);
+
+        salvarDadosNoArquivo();
+        return paciente;
+    }
+
     public Map<String, Long> obterEstatisticas() {
         return Map.of(
                 "totalGeral", (long) bancoPacientes.size(),
-
+                
                 "emFila", bancoPacientes.values().stream().filter(pcte -> pcte.getEstado() == Estado.EM_FILA).count(),
-                "emAtendimento",
-                bancoPacientes.values().stream().filter(pcte -> pcte.getEstado() == Estado.EM_ATENDIMENTO).count(),
-                "atendidos",
-                bancoPacientes.values().stream().filter(pcte -> pcte.getEstado() == Estado.ATENDIDO).count(),
-
-                "prioridadeVermelho",
-                bancoPacientes.values().stream().filter(pcte -> pcte.getPrioridade() == Prioridade.VERMELHO).count(),
-                "prioridadeAmarelo",
-                bancoPacientes.values().stream().filter(pcte -> pcte.getPrioridade() == Prioridade.AMARELO).count(),
-                "prioridadeVerde",
-                bancoPacientes.values().stream().filter(pcte -> pcte.getPrioridade() == Prioridade.VERDE).count());
+                "emAtendimento", bancoPacientes.values().stream().filter(pcte -> pcte.getEstado() == Estado.EM_ATENDIMENTO).count(),
+                "atendidos", bancoPacientes.values().stream().filter(pcte -> pcte.getEstado() == Estado.ATENDIDO).count(),
+                
+                "prioridadeVermelho", bancoPacientes.values().stream().filter(pcte -> pcte.getPrioridade() == Prioridade.VERMELHO).count(),
+                "prioridadeAmarelo", bancoPacientes.values().stream().filter(pcte -> pcte.getPrioridade() == Prioridade.AMARELO).count(),
+                "prioridadeVerde", bancoPacientes.values().stream().filter(pcte -> pcte.getPrioridade() == Prioridade.VERDE).count()
+        );
     }
 
     private synchronized void salvarDadosNoArquivo() {
@@ -108,7 +139,8 @@ public class GerenciadorPacientes {
                         pcte.getPrioridade().name(),
                         pcte.getEstado().name(),
                         pcte.getHoraChegada().toString(),
-                        pcte.getPrognostico() != null ? pcte.getPrognostico() : "null");
+                        pcte.getPrognostico() != null ? pcte.getPrognostico() : "null"
+                );
 
                 writer.println(linha);
             }
@@ -122,7 +154,7 @@ public class GerenciadorPacientes {
 
         if (!arquivo.exists()) {
             System.out.println("Arquivo não encontrado, criando novo microsus_db.txt.");
-
+            
             try {
                 arquivo.createNewFile();
                 System.out.println("microsus_db.txt criado em " + arquivo.getAbsolutePath());
@@ -139,7 +171,7 @@ public class GerenciadorPacientes {
             String linha;
 
             while ((linha = reader.readLine()) != null) {
-                String[] partes = linha.split(";");
+                String [] partes = linha.split(";");
 
                 if (partes.length == 7) {
                     int id = Integer.parseInt(partes[0]);
@@ -150,8 +182,7 @@ public class GerenciadorPacientes {
                     LocalDateTime horaChegada = LocalDateTime.parse(partes[5]);
                     String prognostico = partes[6].equals("null") ? null : partes[6];
 
-                    Paciente pacienteRestaurado = new Paciente(id, nome, sintoma, prioridade, estado, horaChegada,
-                            prognostico);
+                    Paciente pacienteRestaurado = new Paciente(id, nome, sintoma, prioridade, estado, horaChegada, prognostico);
                     bancoPacientes.put(id, pacienteRestaurado);
 
                     if (id > maiorIdEncontrado) {
